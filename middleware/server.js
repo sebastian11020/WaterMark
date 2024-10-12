@@ -5,11 +5,34 @@ const Jimp = require('jimp');
 const sharp = require('sharp');
 const cors = require('cors');
 const path = require('path');
+const axios = require('axios');
+const httpProxy = require('http-proxy');
 const app = express();
 const port = process.env.PORT || 3000;
+const loadBalancerPort = process.env.LOAD_BALANCER_PORT || 3001;
 
 app.use(cors());
 app.use(fileUpload());
+
+const discoveryServiceUrl = process.env.DISCOVERY_SERVICE_URL;
+
+const registerInstance = async () => {
+    try {
+        await axios.post(`${discoveryServiceUrl}/register`, { instanceUrl: `http://localhost:${port}` });
+        console.log('Instance registered with discovery service');
+    } catch (error) {
+        console.error('Error registering instance:', error);
+    }
+};
+
+const deregisterInstance = async () => {
+    try {
+        await axios.post(`${discoveryServiceUrl}/deregister`, { instanceUrl: `http://localhost:${port}` });
+        console.log('Instance deregistered from discovery service');
+    } catch (error) {
+        console.error('Error deregistering instance:', error);
+    }
+};
 
 app.post('/upload', async (req, res) => {
     if (!req.files || Object.keys(req.files).length === 0) {
@@ -56,6 +79,44 @@ app.post('/upload', async (req, res) => {
     }
 });
 
-app.listen(port, () => {
+app.listen(port, async () => {
     console.log(`Server running at http://localhost:${port}`);
+    await registerInstance();
+});
+
+process.on('SIGINT', async () => {
+    await deregisterInstance();
+    process.exit();
+});
+
+// Balanceador de carga round-robin
+const proxy = httpProxy.createProxyServer({});
+let instances = [];
+
+const fetchInstances = async () => {
+    try {
+        const response = await axios.get(`${discoveryServiceUrl}/instances`);
+        instances = response.data;
+    } catch (error) {
+        console.error('Error fetching instances:', error);
+    }
+};
+
+setInterval(fetchInstances, 5000); // Fetch instances every 5 seconds
+
+let currentIndex = 0;
+
+const loadBalancerApp = express();
+
+loadBalancerApp.use((req, res) => {
+    if (instances.length === 0) {
+        return res.status(503).send('No instances available');
+    }
+    proxy.web(req, res, { target: instances[currentIndex] });
+    currentIndex = (currentIndex + 1) % instances.length; // Round Robin
+});
+
+loadBalancerApp.listen(loadBalancerPort, () => {
+    console.log(`Load balancer running at http://localhost:${loadBalancerPort}`);
+    fetchInstances();
 });
