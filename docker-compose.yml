@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  discovery:
+    build: ./discovery
+    ports:
+      - "3007:3007"
+    environment:
+      - DISCOVERY_SERVICE_PORT=3007
+
+  loadbalancer:
+    build: ./loadbalancer
+    ports:
+      - "3001:3001"
+    environment:
+      - LOAD_BALANCER_PORT=3001
+      - DISCOVERY_SERVICE_URL=http://discovery:3007
+
+  marcaAgua:
+    build: ./marcaAgua
+    environment:
+      - PORT=3000
+      - DISCOVERY_SERVICE_URL=http://discovery:3007
+    depends_on:
+      - discovery
+
+  monitor:
+    build: ./monitor
+    ports:
+      - "3003:3003"
+    environment:
+      - DISCOVERY_SERVICE_URL=http://discovery:3007
+    depends_on:
+      - discovery

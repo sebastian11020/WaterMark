@@ -1,9 +1,8 @@
-# marcaAgua/Dockerfile
+# monitoring/Dockerfile
 FROM node:14
 WORKDIR /app
 COPY server.js ./
-COPY watermark.png ./
 COPY package*.json ./
 RUN npm install
-EXPOSE 3000
+EXPOSE 3003
 CMD ["node", "server.js"]
