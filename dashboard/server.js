@@ -18,7 +18,7 @@ app.use(express.static('public')); // Servir archivos estáticos
 app.post('/create-instance', (req, res) => {
     const instanceName = `instance-${instancesCount}`;
     const port = 3000 + instancesCount; // Generar puertos dinámicamente
-    const command = `docker run -d --name ${instanceName} -p ${port}:80 my-container`; // Cambia 'my-container' según tu imagen
+    const command = `docker run -d --name ${instanceName} marcaagua`; // Cambia 'my-container' según tu imagen
 
     exec(command, (error, stdout) => {
         if (error) {
