@@ -93,6 +93,16 @@ process.on('SIGINT', async () => {
 const proxy = httpProxy.createProxyServer({});
 let instances = [];
 
+app.post('/update-instances', (req, res) => {
+    instances = req.body.instances;
+    console.log('Lista de instancias actualizada en el balanceador de carga:', instances);
+    res.send('Instancias actualizadas');
+});
+
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
 const fetchInstances = async () => {
     try {
         const response = await axios.get(`${discoveryServiceUrl}/instances`);

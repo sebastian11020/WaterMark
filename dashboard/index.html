@@ -1,0 +1,46 @@
+<!-- monitoring.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Monitoreo de Instancias</title>
+</head>
+<body>
+    <h2>Control de Ingeniería de Caos</h2>
+    <button onclick="triggerChaos()">Activar Ingeniería de Caos</button>
+    <br><br>
+
+    <h2>Monitoreo del Estado de las Instancias</h2>
+    <button onclick="fetchStatusHistory()">Ver Historial de Estado</button>
+    <div id="statusHistory"></div>
+
+    <script>
+        async function triggerChaos() {
+            try {
+                const response = await fetch('http://localhost:3002/chaos', {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Error al activar la ingeniería de caos.');
+                }
+
+                alert("Ingeniería de caos activada exitosamente.");
+            } catch (error) {
+                console.error("Error al activar la ingeniería de caos:", error);
+                alert("Error al activar la ingeniería de caos. Inténtalo de nuevo.");
+            }
+        }
+
+        async function fetchStatusHistory() {
+            try {
+                const response = await fetch('http://localhost:3003/status-history');
+                const data = await response.json();
+                document.getElementById('statusHistory').innerText = JSON.stringify(data, null, 2);
+            } catch (error) {
+                console.error("Error al obtener el historial de estado:", error);
+            }
+        }
+    </script>
+</body>
+</html>
