@@ -44,7 +44,7 @@ const notifyServices = async () => {
         await axios.post(`${monitoringServiceUrl}/update-instances`, { instances });
         console.log('Lista de instancias enviada al servicio de monitoreo');
     } catch (error) {
-        console.error('Error notificando a los servicios:', error);
+        console.error('Error notificando a los servicios');
     }
 };
 
