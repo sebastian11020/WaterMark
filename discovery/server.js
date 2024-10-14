@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const app = express();
-const port = process.env.DISCOVERY_SERVICE_PORT || 3007;
+const port = process.env.DISCOVERY_SERVICE_PORT || 6000;
 
 let instances = [];
 
@@ -32,8 +32,8 @@ app.get('/instances', (req, res) => {
 
 // Función para enviar la lista de instancias a los otros servicios
 const notifyServices = async () => {
-    const loadBalancerUrl = process.env.LOAD_BALANCER_URL || 'http://localhost:3001';
-    const monitoringServiceUrl = process.env.MONITORING_SERVICE_URL || 'http://localhost:3003';
+    const loadBalancerUrl = process.env.LOAD_BALANCER_URL || 'http://localhost:4000';
+    const monitoringServiceUrl = process.env.MONITORING_SERVICE_URL || 'http://localhost:7000';
 
     try {
         // Notificar al balanceador de carga

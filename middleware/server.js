@@ -9,7 +9,7 @@ const axios = require('axios');
 const httpProxy = require('http-proxy');
 const app = express();
 const port = process.env.PORT || 3000;
-const loadBalancerPort = process.env.LOAD_BALANCER_PORT || 3001;
+const loadBalancerPort = process.env.LOAD_BALANCER_PORT || 4000;
 
 app.use(cors());
 app.use(fileUpload());

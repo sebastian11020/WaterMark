@@ -4,7 +4,7 @@ const axios = require('axios');
 const cors = require('cors');
 const app = express();
 
-const PORT = 3001;
+const PORT = 7000;
 
 let instances = []; // Array para guardar las instancias
 let instancesCount = 0; // Contador de instancias
