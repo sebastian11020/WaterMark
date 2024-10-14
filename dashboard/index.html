@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        button {
+            margin: 5px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        #instances {
+            margin-top: 20px;
+        }
+        #instances ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        #instances li {
+            padding: 5px;
+            border: 1px solid #ccc;
+            margin-bottom: 5px;
+        }
+        #healthChartContainer {
+            margin-top: 20px;
+            width: 100%;
+            height: 400px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Monitoring Dashboard</h1>
+    <button id="createInstanceButton">Create Instance</button>
+    <button id="chaosEngineeringButton">Trigger Chaos Engineering</button>
+    <div id="instances">
+        <h2>Instances</h2>
+        <ul id="instanceList"></ul>
+    </div>
+    <div id="healthChartContainer">
+        <h2>Health Chart</h2>
+        <canvas id="healthChart"></canvas>
+    </div>
+
+    <script>
+        const instanceList = document.getElementById('instanceList');
+        const ctx = document.getElementById('healthChart').getContext('2d');
+    const healthChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [], // Fechas/timestamps de los eventos de health check
+            datasets: [], // Datos de las instancias
+        },
+        options: {
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        unit: 'minute',
+                    },
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    },
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Status',
+                    },
+                    ticks: {
+                        callback: (value) => (value === 200 ? 'Up' : 'Down'),
+                    },
+                    suggestedMin: 0,
+                    suggestedMax: 200,
+                },
+            },
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: true,
+                },
+            },
+        },
+    });
+
+        async function fetchInstances() {
+            const response = await fetch('http://localhost:7000/instances');
+            const instances = await response.json();
+            instanceList.innerHTML = instances.map(instance => `<li>${instance.name} (Port: ${instance.port}) - ${instance.status}</li>`).join('');
+            updateHealthChart(instances);
+        }
+
+        async function fetchHealthHistory() {
+        const response = await fetch('http://localhost:7000/health-history');
+        const history = await response.json();
+
+        // Limpiar datos actuales
+        healthChart.data.labels = [];
+        healthChart.data.datasets = [];
+
+        // Procesar el historial de cada instancia
+        Object.keys(history).forEach(instance => {
+            const instanceData = history[instance].map(entry => ({
+                x: new Date(entry.timestamp),
+                y: entry.status === 200 ? 200 : 0,
+            }));
+
+            healthChart.data.datasets.push({
+                label: instance,
+                data: instanceData,
+                borderColor: 'rgba(75, 192, 192, 1)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                fill: false,
+            });
+
+            // Agregar etiquetas de tiempo
+            instanceData.forEach(dataPoint => {
+                if (!healthChart.data.labels.includes(dataPoint.x)) {
+                    healthChart.data.labels.push(dataPoint.x);
+                }
+            });
+        });
+
+        // Ordenar las etiquetas de tiempo
+        healthChart.data.labels.sort((a, b) => a - b);
+
+        // Actualizar el gráfico
+        healthChart.update();
+    }
+
+        function updateHealthChart(instances) {
+            healthChart.data.labels = [];
+            healthChart.data.datasets = [];
+
+            instances.forEach(instance => {
+                if (!healthChart.data.datasets.some(dataset => dataset.label === instance.name)) {
+                    healthChart.data.datasets.push({
+                        label: instance.name,
+                        data: [],
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        fill: false,
+                    });
+                }
+            });
+
+            healthChart.update();
+        }
+
+        async function updateChartData(history) {
+            await fetchHealthHistory();
+            healthChart.data.labels = [];
+            healthChart.data.datasets.forEach(dataset => {
+                dataset.data = [];
+            });
+
+            Object.keys(history).forEach(instanceName => {
+                const data = history[instanceName];
+                data.forEach(entry => {
+                    const timestamp = new Date(entry.timestamp).getTime();
+                    const status = entry.status === 200 ? 200 : 0;
+                    healthChart.data.labels.push(timestamp);
+                    const dataset = healthChart.data.datasets.find(ds => ds.label === instanceName);
+                    if (dataset) {
+                        dataset.data.push({ x: timestamp, y: status });
+                    }
+                });
+            });
+
+            healthChart.update();
+        }
+
+        document.getElementById('createInstanceButton').addEventListener('click', async () => {
+            await fetch('http://localhost:7000/create-instance', { method: 'POST' });
+            fetchInstances();
+        });
+
+        document.getElementById('chaosEngineeringButton').addEventListener('click', async () => {
+            await fetch('http://localhost:7000/chaos-engineering', { method: 'POST' });
+            fetchInstances();
+        });
+
+        // Fetch instances and health data on load
+        fetchInstances();
+        setInterval(fetchHealthHistory, 5000); // Update chart data every 5 seconds
+    </script>
+</body>
+</html>

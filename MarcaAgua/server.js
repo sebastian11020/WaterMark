@@ -10,6 +10,7 @@ const port = 3000;
 app.use(cors());
 app.use(fileUpload());
 
+
 app.post('/upload', async (req, res) => {
     if (!req.files || Object.keys(req.files).length === 0) {
         return res.status(400).send('No files were uploaded.');
@@ -53,6 +54,10 @@ app.post('/upload', async (req, res) => {
         console.error("Error processing the image:", error);
         res.status(500).send('Error processing the image.');
     }
+});
+
+app.get('/health-check', (req, res) => {
+    res.status(200).send('OK');
 });
 
 app.listen(port, () => {
