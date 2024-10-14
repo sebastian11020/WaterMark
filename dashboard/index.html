@@ -50,40 +50,44 @@
     <script>
         const instanceList = document.getElementById('instanceList');
         const ctx = document.getElementById('healthChart').getContext('2d');
-        const healthChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [],
-            },
-            options: {
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: {
-                            unit: 'minute',
-                        },
+    const healthChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [], // Fechas/timestamps de los eventos de health check
+            datasets: [], // Datos de las instancias
+        },
+        options: {
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        unit: 'minute',
                     },
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'Status',
-                        },
-                        ticks: {
-                            callback: (value) => {
-                                return value === 200 ? 'Up' : 'Down';
-                            },
-                        },
-                    },
-                },
-                responsive: true,
-                plugins: {
-                    legend: {
+                    title: {
                         display: true,
+                        text: 'Time'
                     },
                 },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Status',
+                    },
+                    ticks: {
+                        callback: (value) => (value === 200 ? 'Up' : 'Down'),
+                    },
+                    suggestedMin: 0,
+                    suggestedMax: 200,
+                },
             },
-        });
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: true,
+                },
+            },
+        },
+    });
 
         async function fetchInstances() {
             const response = await fetch('http://localhost:7000/instances');
@@ -93,10 +97,42 @@
         }
 
         async function fetchHealthHistory() {
-            const response = await fetch('http://localhost:7000/health-history');
-            const history = await response.json();
-            updateChartData(history);
-        }
+        const response = await fetch('http://localhost:7000/health-history');
+        const history = await response.json();
+
+        // Limpiar datos actuales
+        healthChart.data.labels = [];
+        healthChart.data.datasets = [];
+
+        // Procesar el historial de cada instancia
+        Object.keys(history).forEach(instance => {
+            const instanceData = history[instance].map(entry => ({
+                x: new Date(entry.timestamp),
+                y: entry.status === 200 ? 200 : 0,
+            }));
+
+            healthChart.data.datasets.push({
+                label: instance,
+                data: instanceData,
+                borderColor: 'rgba(75, 192, 192, 1)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                fill: false,
+            });
+
+            // Agregar etiquetas de tiempo
+            instanceData.forEach(dataPoint => {
+                if (!healthChart.data.labels.includes(dataPoint.x)) {
+                    healthChart.data.labels.push(dataPoint.x);
+                }
+            });
+        });
+
+        // Ordenar las etiquetas de tiempo
+        healthChart.data.labels.sort((a, b) => a - b);
+
+        // Actualizar el gráfico
+        healthChart.update();
+    }
 
         function updateHealthChart(instances) {
             healthChart.data.labels = [];
@@ -118,6 +154,7 @@
         }
 
         async function updateChartData(history) {
+            await fetchHealthHistory();
             healthChart.data.labels = [];
             healthChart.data.datasets.forEach(dataset => {
                 dataset.data = [];
