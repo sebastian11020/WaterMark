@@ -32,6 +32,33 @@ app.post('/create-instance', (req, res) => {
     });
 });
 
+// Ruta para hacer ingeniería de caos (destruir un contenedor aleatorio)
+app.post('/chaos-engineering', (req, res) => {
+    if (instances.length === 0) {
+        return res.status(400).send('No hay instancias disponibles para eliminar');
+    }
+
+    // Seleccionar una instancia aleatoria
+    const randomIndex = Math.floor(Math.random() * instances.length);
+    const instanceToRemove = instances[randomIndex];
+
+    // Comando para eliminar el contenedor Docker
+    const command = `docker rm -f ${instanceToRemove.name}`;
+
+    exec(command, (error, stdout) => {
+        if (error) {
+            console.error(`Error al eliminar la instancia: ${error}`);
+            return res.status(500).send('Error al eliminar la instancia');
+        }
+        console.log(`Instancia eliminada: ${stdout}`);
+
+        // Remover la instancia del arreglo de instancias
+        instances.splice(randomIndex, 1);
+        res.status(200).send(`Instancia eliminada exitosamente: ${instanceToRemove.name}`);
+    });
+});
+
+
 // Ruta para obtener todas las instancias
 app.get('/instances', (req, res) => {
     res.status(200).json(instances);
