@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoring Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script> <!-- Agregar esta línea -->
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -84,20 +85,20 @@
         });
 
         async function fetchInstances() {
-            const response = await fetch('http://localhost:3002/instances');
+            const response = await fetch('http://localhost:3001/instances');
             const instances = await response.json();
             instanceList.innerHTML = instances.map(instance => `<li>${instance}</li>`).join('');
             updateHealthChart(instances);
         }
 
         async function fetchHealthCheck() {
-            const response = await fetch('http://localhost:3002/health-check');
+            const response = await fetch('http://localhost:3001/health-check');
             await response.json(); // Call the health check to update the history
             fetchInstances(); // Refresh instance list
         }
 
         async function fetchHealthHistory() {
-            const response = await fetch('http://localhost:3002/health-history');
+            const response = await fetch('http://localhost:3001/health-history');
             const history = await response.json();
             updateHealthChart(Object.keys(history));
         }
@@ -122,7 +123,7 @@
         }
 
         async function updateChartData() {
-            const historyResponse = await fetch('http://localhost:3002/health-history');
+            const historyResponse = await fetch('http://localhost:3001/health-history');
             const history = await historyResponse.json();
 
             Object.keys(history).forEach(instance => {
@@ -143,12 +144,12 @@
         }
 
         document.getElementById('createInstanceButton').addEventListener('click', async () => {
-            await fetch('http://localhost:3002/create-instance', { method: 'POST' });
+            await fetch('http://localhost:3001/create-instance', { method: 'POST' });
             fetchInstances();
         });
 
         document.getElementById('chaosEngineeringButton').addEventListener('click', async () => {
-            await fetch('http://localhost:3002/chaos-engineering', { method: 'POST' });
+            await fetch('http://localhost:3001/chaos-engineering', { method: 'POST' });
             fetchInstances();
         });
 
