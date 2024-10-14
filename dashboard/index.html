@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoring Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script> <!-- Agregar esta línea -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -27,7 +27,8 @@
             border: 1px solid #ccc;
             margin-bottom: 5px;
         }
-        #healthChart {
+        #healthChartContainer {
+            margin-top: 20px;
             width: 100%;
             height: 400px;
         }
@@ -41,8 +42,8 @@
         <h2>Instances</h2>
         <ul id="instanceList"></ul>
     </div>
-    <div id="healthCheck">
-        <h2>Health Check Status</h2>
+    <div id="healthChartContainer">
+        <h2>Health Chart</h2>
         <canvas id="healthChart"></canvas>
     </div>
 
@@ -87,20 +88,14 @@
         async function fetchInstances() {
             const response = await fetch('http://localhost:7000/instances');
             const instances = await response.json();
-            instanceList.innerHTML = instances.map(instance => `<li>${instance}</li>`).join('');
+            instanceList.innerHTML = instances.map(instance => `<li>${instance.name} (Port: ${instance.port}) - ${instance.status}</li>`).join('');
             updateHealthChart(instances);
-        }
-
-        async function fetchHealthCheck() {
-            const response = await fetch('http://localhost:7000/health-check');
-            await response.json(); // Call the health check to update the history
-            fetchInstances(); // Refresh instance list
         }
 
         async function fetchHealthHistory() {
             const response = await fetch('http://localhost:7000/health-history');
             const history = await response.json();
-            updateHealthChart(Object.keys(history));
+            updateChartData(history);
         }
 
         function updateHealthChart(instances) {
@@ -108,9 +103,9 @@
             healthChart.data.datasets = [];
 
             instances.forEach(instance => {
-                if (!healthChart.data.datasets.some(dataset => dataset.label === instance)) {
+                if (!healthChart.data.datasets.some(dataset => dataset.label === instance.name)) {
                     healthChart.data.datasets.push({
-                        label: instance,
+                        label: instance.name,
                         data: [],
                         borderColor: 'rgba(75, 192, 192, 1)',
                         backgroundColor: 'rgba(75, 192, 192, 0.2)',
@@ -119,24 +114,25 @@
                 }
             });
 
-            fetchHealthHistory();
+            healthChart.update();
         }
 
-        async function updateChartData() {
-            const historyResponse = await fetch('http://localhost:7000/health-history');
-            const history = await historyResponse.json();
+        async function updateChartData(history) {
+            healthChart.data.labels = [];
+            healthChart.data.datasets.forEach(dataset => {
+                dataset.data = [];
+            });
 
-            Object.keys(history).forEach(instance => {
-                const data = history[instance];
+            Object.keys(history).forEach(instanceName => {
+                const data = history[instanceName];
                 data.forEach(entry => {
                     const timestamp = new Date(entry.timestamp).getTime();
-                    const status = entry.status === 200 ? 200 : 'down';
+                    const status = entry.status === 200 ? 200 : 0;
                     healthChart.data.labels.push(timestamp);
-                    healthChart.data.datasets.forEach(dataset => {
-                        if (dataset.label === instance) {
-                            dataset.data.push({ x: timestamp, y: status });
-                        }
-                    });
+                    const dataset = healthChart.data.datasets.find(ds => ds.label === instanceName);
+                    if (dataset) {
+                        dataset.data.push({ x: timestamp, y: status });
+                    }
                 });
             });
 
@@ -153,10 +149,9 @@
             fetchInstances();
         });
 
-        // Fetch instances and health check on load
+        // Fetch instances and health data on load
         fetchInstances();
-        fetchHealthCheck();
-        setInterval(updateChartData, 5000); // Actualizar datos del gráfico cada 5 segundos
+        setInterval(fetchHealthHistory, 5000); // Update chart data every 5 seconds
     </script>
 </body>
 </html>
