@@ -5,5 +5,5 @@ COPY server.js ./
 COPY watermark.png ./
 COPY package*.json ./
 RUN npm install
-EXPOSE 4000
+EXPOSE 3000
 CMD ["node", "server.js"]
