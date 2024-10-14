@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const fileUpload = require('express-fileupload');
 const Jimp = require('jimp');
@@ -6,7 +5,7 @@ const sharp = require('sharp');
 const cors = require('cors');
 const path = require('path');
 const app = express();
-const port = process.env.PORT || 3000;
+const port = 3000;
 
 app.use(cors());
 app.use(fileUpload());
@@ -55,11 +54,6 @@ app.post('/upload', async (req, res) => {
         res.status(500).send('Error processing the image.');
     }
 });
-
-app.get('/health', (req, res) => {
-    res.status(200).send('OK');
-});
-
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
