@@ -1,4 +1,3 @@
-// discovery/server.js
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
@@ -7,30 +6,48 @@ const port = process.env.DISCOVERY_SERVICE_PORT || 6000;
 
 let instances = [];
 
-// Middleware para parsear JSON
+// Middleware para manejar JSON
 app.use(express.json());
 
+// Ruta para registrar instancias
 app.post('/register', (req, res) => {
     const { instanceUrl } = req.body;
+    if (!instanceUrl) {
+        return res.status(400).send('No instance URL provided');
+    }
+    
     if (!instances.includes(instanceUrl)) {
         instances.push(instanceUrl);
         console.log(`Instancia registrada: ${instanceUrl}`);
+        // Notificar a otros servicios después de un nuevo registro
+        notifyServices();
+    } else {
+        console.log(`La instancia ya está registrada: ${instanceUrl}`);
     }
-    res.send('Instancia registrada');
+    
+    res.status(200).send('Instancia registrada');
 });
 
+// Ruta para desregistrar instancias
 app.post('/deregister', (req, res) => {
     const { instanceUrl } = req.body;
+    if (!instanceUrl) {
+        return res.status(400).send('No instance URL provided');
+    }
+    
     instances = instances.filter(url => url !== instanceUrl);
     console.log(`Instancia desregistrada: ${instanceUrl}`);
-    res.send('Instancia desregistrada');
+    // Notificar a otros servicios después de un desregistro
+    notifyServices();
+    res.status(200).send('Instancia desregistrada');
 });
 
+// Ruta para obtener la lista de instancias registradas
 app.get('/instances', (req, res) => {
-    res.json(instances);
+    res.status(200).json(instances);
 });
 
-// Función para enviar la lista de instancias a los otros servicios
+// Función para enviar la lista de instancias a otros servicios
 const notifyServices = async () => {
     const loadBalancerUrl = process.env.LOAD_BALANCER_URL || 'http://localhost:4000';
     const monitoringServiceUrl = process.env.MONITORING_SERVICE_URL || 'http://localhost:7000';
@@ -44,7 +61,7 @@ const notifyServices = async () => {
         await axios.post(`${monitoringServiceUrl}/update-instances`, { instances });
         console.log('Lista de instancias enviada al servicio de monitoreo');
     } catch (error) {
-        console.error('Error notificando a los servicios');
+        console.error('Error notificando a los servicios:', error.message);
     }
 };
 
@@ -53,4 +70,7 @@ setInterval(notifyServices, 10000); // Revisa cada 10 segundos
 
 app.listen(port, () => {
     console.log(`Servicio de descubrimiento corriendo en http://localhost:${port}`);
+    
+    // Al iniciar, notificar a los servicios de las instancias registradas
+    notifyServices();
 });

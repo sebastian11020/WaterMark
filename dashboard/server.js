@@ -16,6 +16,7 @@ let instances = [];
 let instancesCount = 0;
 let healthHistory = {};
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public')); // Servir archivos estáticos
@@ -31,7 +32,7 @@ app.post('/create-instance', (req, res) => {
             console.error(`Error al crear la instancia: ${error}`);
             return res.status(500).send('Error al crear la instancia');
         }
-        instances.push({ name: instanceName, port: port, status: 'Running' });
+        instances.push({ name: instanceName, port: port, status: 'Running', failedChecks: 0 });
         instancesCount++;
         io.emit('update', { instances, healthHistory });
         res.status(201).send(`Instancia creada exitosamente: ${instanceName}`);
@@ -67,42 +68,95 @@ app.get('/instances', (req, res) => {
 // Ruta para hacer un health check de las instancias
 app.get('/health-check', async (req, res) => {
     const statuses = [];
+
     for (const instance of instances) {
         try {
             const start = Date.now();
-            await axios.get(`http://localhost:${instance.port}/health-check`);
+            // Configuración de timeout de 30 segundos
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 30000));
+
+            await Promise.race([
+                axios.get(`http://192.168.20.27:${instance.port}/health-check`),
+                timeout
+            ]);
+
             const latency = Date.now() - start;
             statuses.push({ instance: instance.name, status: 'Running', latency });
-            
-            // Inicializar el historial de salud si no existe para la instancia
+            // Actualiza el historial de salud
             if (!healthHistory[instance.name]) {
                 healthHistory[instance.name] = [];
             }
-            
             healthHistory[instance.name].push({ timestamp: Date.now(), latency, status: 'Running' });
-        } catch (error) {
-            statuses.push({ instance: instance.name, status: 'Dead', latency: null });
             
-            // Inicializar el historial de salud si no existe para la instancia
+            // Reinicia el contador de fallos
+            instance.failedChecks = 0; 
+        } catch (error) {
+            console.error(`Error en la instancia ${instance.name}: ${error.message}`);
+            statuses.push({ instance: instance.name, status: 'Dead', latency: null });
+            // Actualiza el historial de salud
             if (!healthHistory[instance.name]) {
                 healthHistory[instance.name] = [];
             }
-
             healthHistory[instance.name].push({ timestamp: Date.now(), latency: null, status: 'Dead' });
+
+            // Aumenta el contador de fallos
+            instance.failedChecks++;
+
+            // Eliminar y recrear la instancia si ha fallado 3 veces
+            if (instance.failedChecks >= 3) {
+                await removeAndRestartInstance(instance);
+            }
         }
     }
+    
     io.emit('update', { instances, healthHistory });
     res.status(200).json(statuses);
 });
 
+// Función para eliminar y reiniciar una instancia
+const removeAndRestartInstance = async (instance) => {
+    const command = `docker rm -f ${instance.name}`;
+    exec(command, (error, stdout) => {
+        if (error) {
+            console.error(`Error al eliminar la instancia ${instance.name}: ${error}`);
+            return;
+        }
+        instances = instances.filter(inst => inst.name !== instance.name);
+        io.emit('update', { instances, healthHistory });
+        
+        // Reiniciar la instancia
+        const newInstanceName = `instance-${instancesCount}`;
+        const newPort = 5000 + instancesCount;
+        const newCommand = `docker run -d -p ${newPort}:3000 --name ${newInstanceName} marcaagua`;
+        
+        exec(newCommand, (error, stdout) => {
+            if (error) {
+                console.error(`Error al reiniciar la instancia ${newInstanceName}: ${error}`);
+                return;
+            }
+            instances.push({ name: newInstanceName, port: newPort, status: 'Running', failedChecks: 0 });
+            instancesCount++;
+            io.emit('update', { instances, healthHistory });
+            console.log(`Instancia reiniciada exitosamente: ${newInstanceName}`);
+        });
+    });
+};
+
+// Endpoint para obtener el historial de salud
 app.get('/health-history', (req, res) => {
     res.status(200).json(healthHistory);
 });
 
+// Iniciar el servidor
 server.listen(PORT, () => {
-    console.log(`Servidor corriendo en http://localhost:${PORT}`);
+    console.log(`Servidor corriendo en http://192.168.20.27:${PORT}`);
 });
 
+// Intervalo para verificar la salud de las instancias
 setInterval(async () => {
-    await axios.get(`http://localhost:${PORT}/health-check`);
+    try {
+        await axios.get(`http://192.168.20.27:${PORT}/health-check`);
+    } catch (error) {
+        console.error(`Error al verificar salud: ${error.message}`);
+    }
 }, 5000);
