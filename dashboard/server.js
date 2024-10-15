@@ -9,21 +9,26 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-const PORT = 7000;
+const PORT = process.env.SERVER_PORT;
+const BASE_PORT = parseInt(process.env.BASE_PORT);
+const DISCOVERY_SERVICE_URL = process.env.DISCOVERY_SERVICE_URL; 
+const HEALTH_CHECK_TIMEOUT = parseInt(process.env.HEALTH_CHECK_TIMEOUT);
+const HEALTH_CHECK_INTERVAL = parseInt(process.env.HEALTH_CHECK_INTERVAL);
+const DOCKER_IMAGE_NAME = process.env.DOCKER_IMAGE_NAME;
+const IP_ADDRESS = process.env.IP_ADDRESS ; 
 
 let instances = [];
 let instancesCount = 0;
 let healthHistory = {};
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public')); 
 
 app.post('/create-instance', async (req, res) => {
     const instanceName = `instance-${instancesCount}`;
-    const port = 5000 + instancesCount;
-    const command = `docker run -d -p ${port}:3000 --name ${instanceName} marcaagua`;
+    const port = BASE_PORT + instancesCount;
+    const command = `docker run -d -p ${port}:3000 --name ${instanceName} ${DOCKER_IMAGE_NAME}`;
 
     exec(command, async (error, stdout) => {
         if (error) {
@@ -31,10 +36,10 @@ app.post('/create-instance', async (req, res) => {
             return res.status(500).send('Error al crear la instancia');
         }
         
-        const instanceUrl = `http://localhost:${port}`;
+        const instanceUrl = `http://${IP_ADDRESS}:${port}`; // Usando la IP
 
         try {
-            await axios.post(`http://localhost:6000/register`, { instanceUrl });
+            await axios.post(`${DISCOVERY_SERVICE_URL}/register`, { instanceUrl });
             console.log(`Instancia registrada en el servicio de discovery: ${instanceUrl}`);
         } catch (err) {
             console.error(`Error al registrar la instancia en el servicio de discovery: ${err.message}`);
@@ -62,24 +67,21 @@ app.post('/chaos-engineering', (req, res) => {
             return res.status(500).send('Error al eliminar la instancia');
         }
 
-        const instanceUrl = `http://localhost:${instanceToRemove.port}`;
+        const instanceUrl = `http://${IP_ADDRESS}:${instanceToRemove.port}`; // Usando la IP
 
-        // Llamada para desregistrar la instancia del servicio de discovery
         try {
-            await axios.post(`http://localhost:6000/deregister`, { instanceUrl });
+            await axios.post(`${DISCOVERY_SERVICE_URL}/deregister`, { instanceUrl });
             console.log(`Instancia desregistrada del servicio de discovery: ${instanceUrl}`);
         } catch (err) {
             console.error(`Error al desregistrar la instancia en el servicio de discovery: ${err.message}`);
         }
 
-        // Eliminar la instancia de la lista local y notificar la actualización
         instances.splice(randomIndex, 1);
         io.emit('update', { instances, healthHistory });
 
-        // Crear una nueva instancia para reemplazar la eliminada
         const newInstanceName = `instance-${instancesCount}`;
-        const newPort = 5000 + instancesCount;
-        const newCommand = `docker run -d -p ${newPort}:3000 --name ${newInstanceName} marcaagua`;
+        const newPort = BASE_PORT + instancesCount;
+        const newCommand = `docker run -d -p ${newPort}:3000 --name ${newInstanceName} ${DOCKER_IMAGE_NAME}`;
 
         exec(newCommand, async (error, stdout) => {
             if (error) {
@@ -91,10 +93,9 @@ app.post('/chaos-engineering', (req, res) => {
             io.emit('update', { instances, healthHistory });
             console.log(`Instancia reiniciada exitosamente: ${newInstanceName}`);
 
-            // Registrar la nueva instancia en el servicio de discovery
-            const newInstanceUrl = `http://localhost:${newPort}`;
+            const newInstanceUrl = `http://${IP_ADDRESS}:${newPort}`; // Usando la IP
             try {
-                await axios.post(`http://localhost:6000/register`, { instanceUrl: newInstanceUrl });
+                await axios.post(`${DISCOVERY_SERVICE_URL}/register`, { instanceUrl: newInstanceUrl });
                 console.log(`Instancia registrada en el servicio de discovery: ${newInstanceUrl}`);
             } catch (err) {
                 console.error(`Error al registrar la nueva instancia en el servicio de discovery: ${err.message}`);
@@ -104,7 +105,6 @@ app.post('/chaos-engineering', (req, res) => {
         res.status(200).send(`Instancia eliminada y nueva instancia creada: ${instanceToRemove.name}`);
     });
 });
-
 
 app.get('/instances', (req, res) => {
     res.status(200).json(instances);
@@ -116,10 +116,10 @@ app.get('/health-check', async (req, res) => {
     for (const instance of instances) {
         try {
             const start = Date.now();
-            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 30000));
+            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), HEALTH_CHECK_TIMEOUT));
 
             await Promise.race([
-                axios.get(`http://localhost:${instance.port}/health-check`),
+                axios.get(`http://${IP_ADDRESS}:${instance.port}/health-check`), // Usando la IP
                 timeout
             ]);
 
@@ -163,8 +163,8 @@ const removeAndRestartInstance = async (instance) => {
         io.emit('update', { instances, healthHistory });
 
         const newInstanceName = `instance-${instancesCount}`;
-        const newPort = 5000 + instancesCount;
-        const newCommand = `docker run -d -p ${newPort}:3000 --name ${newInstanceName} marcaagua`;
+        const newPort = BASE_PORT + instancesCount;
+        const newCommand = `docker run -d -p ${newPort}:3000 --name ${newInstanceName} ${DOCKER_IMAGE_NAME}`;
         
         exec(newCommand, (error, stdout) => {
             if (error) {
@@ -184,13 +184,13 @@ app.get('/health-history', (req, res) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`Servidor corriendo en http://localhost:${PORT}`);
+    console.log(`Servidor corriendo en http://${IP_ADDRESS}:${PORT}`); // Usando la IP
 });
 
 setInterval(async () => {
     try {
-        await axios.get(`http://localhost:${PORT}/health-check`);
+        await axios.get(`http://${IP_ADDRESS}:${PORT}/health-check`); // Usando la IP
     } catch (error) {
         console.error(`Error al verificar salud: ${error.message}`);
     }
-}, 5000);
+}, HEALTH_CHECK_INTERVAL);
