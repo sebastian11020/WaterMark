@@ -2,13 +2,19 @@ const express = require('express');
 const { exec } = require('child_process');
 const axios = require('axios');
 const cors = require('cors');
+const path = require('path');
+const http = require('http');
+const socketIo = require('socket.io');
+
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server);
 
 const PORT = 7000;
 
-let instances = []; // Array para guardar las instancias
-let instancesCount = 0; // Contador de instancias
-let healthHistory = {}; // Almacenar historial de salud
+let instances = [];
+let instancesCount = 0;
+let healthHistory = {};
 
 app.use(cors());
 app.use(express.json());
@@ -17,32 +23,29 @@ app.use(express.static('public')); // Servir archivos estáticos
 // Ruta para crear una nueva instancia
 app.post('/create-instance', (req, res) => {
     const instanceName = `instance-${instancesCount}`;
-    const port = 5000 + instancesCount; // Generar puertos dinámicamente
-    const command = `docker run -d  -p ${port}:3000 --name ${instanceName} marcaagua`; // Cambia 'my-container' según tu imagen
+    const port = 5000 + instancesCount;
+    const command = `docker run -d -p ${port}:3000 --name ${instanceName} marcaagua`;
 
     exec(command, (error, stdout) => {
         if (error) {
             console.error(`Error al crear la instancia: ${error}`);
             return res.status(500).send('Error al crear la instancia');
         }
-        console.log(`Nueva instancia creada: ${stdout}`);
-        instances.push({ name: instanceName, port: port, status: 'Running' }); // Guardar la instancia
+        instances.push({ name: instanceName, port: port, status: 'Running' });
         instancesCount++;
+        io.emit('update', { instances, healthHistory });
         res.status(201).send(`Instancia creada exitosamente: ${instanceName}`);
     });
 });
 
-// Ruta para hacer ingeniería de caos (destruir un contenedor aleatorio)
+// Ruta para hacer ingeniería de caos (eliminar una instancia aleatoria)
 app.post('/chaos-engineering', (req, res) => {
     if (instances.length === 0) {
         return res.status(400).send('No hay instancias disponibles para eliminar');
     }
 
-    // Seleccionar una instancia aleatoria
     const randomIndex = Math.floor(Math.random() * instances.length);
     const instanceToRemove = instances[randomIndex];
-
-    // Comando para eliminar el contenedor Docker
     const command = `docker rm -f ${instanceToRemove.name}`;
 
     exec(command, (error, stdout) => {
@@ -50,56 +53,60 @@ app.post('/chaos-engineering', (req, res) => {
             console.error(`Error al eliminar la instancia: ${error}`);
             return res.status(500).send('Error al eliminar la instancia');
         }
-        console.log(`Instancia eliminada: ${stdout}`);
-
-        // Remover la instancia del arreglo de instancias
         instances.splice(randomIndex, 1);
+        io.emit('update', { instances, healthHistory });
         res.status(200).send(`Instancia eliminada exitosamente: ${instanceToRemove.name}`);
     });
 });
-
 
 // Ruta para obtener todas las instancias
 app.get('/instances', (req, res) => {
     res.status(200).json(instances);
 });
 
-// Endpoint para el health check de las instancias
+// Ruta para hacer un health check de las instancias
 app.get('/health-check', async (req, res) => {
     const statuses = [];
     for (const instance of instances) {
         try {
-            const response = await axios.get(`http://${instance}:80`);
-            const status = { instance, status: response.status };
-            statuses.push(status);
-            healthHistory[instance].push({ timestamp: new Date(), status: response.status });
+            const start = Date.now();
+            await axios.get(`http://localhost:${instance.port}/health-check`);
+            const latency = Date.now() - start;
+            statuses.push({ instance: instance.name, status: 'Running', latency });
+            
+            // Inicializar el historial de salud si no existe para la instancia
+            if (!healthHistory[instance.name]) {
+                healthHistory[instance.name] = [];
+            }
+            
+            healthHistory[instance.name].push({ timestamp: Date.now(), latency, status: 'Running' });
         } catch (error) {
-            const status = { instance, status: 'down' };
-            statuses.push(status);
-            healthHistory[instance].push({ timestamp: new Date(), status: 'down' });
+            statuses.push({ instance: instance.name, status: 'Dead', latency: null });
+            
+            // Inicializar el historial de salud si no existe para la instancia
+            if (!healthHistory[instance.name]) {
+                healthHistory[instance.name] = [];
+            }
+
+            healthHistory[instance.name].push({ timestamp: Date.now(), latency: null, status: 'Dead' });
         }
     }
+    io.emit('update', { instances, healthHistory });
     res.status(200).json(statuses);
 });
 
-// Endpoint para obtener el historial de salud
+
+// Ruta para obtener el historial de salud de las instancias
 app.get('/health-history', (req, res) => {
     res.status(200).json(healthHistory);
 });
 
-// Monitoreo de instancias cada cierto tiempo
-setInterval(async () => {
-    for (const instance of instances) {
-        try {
-            const response = await axios.get(`http://localhost:${instance.port}/health-check`);
-            instance.status = response.status === 200 ? 'Running' : 'Not Responding';
-        } catch (error) {
-            instance.status = 'Not Responding';
-        }
-    }
-    console.log('Estado de instancias actualizado:', instances);
-}, 5000); // Cada 5 segundos
-
-app.listen(PORT, () => {
-    console.log(`Servidor de monitoring escuchando en http://localhost:${PORT}`);
+// Iniciar el servidor
+server.listen(PORT, () => {
+    console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });
+
+// Realizar un health check cada 5 segundos
+setInterval(async () => {
+    await axios.get(`http://localhost:${PORT}/health-check`);
+}, 5000);

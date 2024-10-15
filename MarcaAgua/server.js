@@ -4,12 +4,12 @@ const Jimp = require('jimp');
 const sharp = require('sharp');
 const cors = require('cors');
 const path = require('path');
+const axios = require('axios'); // Añadir axios para hacer las peticiones HTTP
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000; // Permitimos que el puerto sea dinámico
 
 app.use(cors());
 app.use(fileUpload());
-
 
 app.post('/upload', async (req, res) => {
     if (!req.files || Object.keys(req.files).length === 0) {
@@ -60,6 +60,19 @@ app.get('/health-check', (req, res) => {
     res.status(200).send('OK');
 });
 
+// Función para registrar la instancia en el Discovery Server
+const registerInstance = async () => {
+    const instanceUrl = `http://localhost:${port}`;
+    try {
+        await axios.post('http://localhost:6000/register', { instanceUrl });
+        console.log(`Instancia registrada en el Discovery Server: ${instanceUrl}`);
+    } catch (error) {
+        console.error('Error registrando la instancia en el Discovery Server:', error);
+    }
+};
+
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
+
+    registerInstance();
 });
