@@ -5,18 +5,16 @@ const fileUpload = require('express-fileupload');
 
 const app = express();
 const proxy = httpProxy.createProxyServer();
-const discoveryServiceUrl = 'http://192.168.20.27:6000'; // Puerto del servicio discovery
+const discoveryServiceUrl = 'http://192.168.20.27:6000'; 
 
 let instances = [];
 let currentIndex = 0;
 
 app.use(fileUpload());
 
-// Middleware para registrar la instancia en el discovery
 app.use((req, res, next) => {
-    const instanceUrl = `http://192.168.20.27:3000`; // Cambiar al puerto adecuado según sea necesario
+    const instanceUrl = `http://192.168.20.27:3000`; 
 
-    // Aquí se registran las instancias
     axios.post(`${discoveryServiceUrl}/register`, { url: instanceUrl })
         .then(response => {
             console.log('Instance registered with discovery service');
@@ -28,13 +26,11 @@ app.use((req, res, next) => {
         });
 });
 
-// Función para obtener instancias del discovery
 const fetchInstances = async () => {
     try {
         const response = await axios.get(`${discoveryServiceUrl}/instances`);
         console.log('Respuesta del discovery:', response.data);
 
-        // Accede a instances desde la respuesta
         if (response.data && Array.isArray(response.data.instances)) {
             instances = response.data.instances;
             console.log('Instancias obtenidas:', instances);
@@ -46,20 +42,16 @@ const fetchInstances = async () => {
     }
 };
 
-// Endpoint para manejar las peticiones al load balancer
 app.use((req, res) => {
     if (!Array.isArray(instances) || instances.length === 0) {
         return res.status(503).send('No instances available');
     }
-    // Realiza el balanceo de carga
     proxy.web(req, res, { target: instances[currentIndex] });
-    currentIndex = (currentIndex + 1) % instances.length; // Round Robin
+    currentIndex = (currentIndex + 1) % instances.length; 
 });
 
-// Ejecutar la función fetchInstances cada cierto tiempo
-setInterval(fetchInstances, 5000); // Cada 5 segundos
+setInterval(fetchInstances, 5000);
 
-// Iniciar el servidor
 const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`Server running at http://192.168.20.27:${PORT}`);
