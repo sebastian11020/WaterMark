@@ -3,47 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <title>Marca de agua</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #watermarkedImage {
+            margin-top: 20px;
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
 </head>
 <body>
-    <h2>Upload an image to add a watermark</h2>
-    <input type="file" id="imageUpload">
-    <button onclick="uploadImage()">Upload</button>
+    <h2>Sube una imagen para añadir una marca de agua</h2>
+    <input type="file" id="imageUpload" accept="image/*">
+    <button onclick="uploadImage()">Subir</button>
     <br><br>
-    <img id="watermarkedImage" alt="Watermarked Image">
+    <img id="watermarkedImage" alt="Imagen con marca de agua">
 
-    <script>
-        const validMimeTypes = ['image/jpeg', 'image/png', 'image/bmp', 'image/tiff'];
-
-        async function uploadImage() {
-            const fileInput = document.getElementById('imageUpload');
-            const file = fileInput.files[0];
-            
-            if (!validMimeTypes.includes(file.type)) {
-                alert("Please upload a valid image file (jpeg, png, bmp, tiff).");
-                return;
-            }
-        
-            const formData = new FormData();
-            formData.append('image', file);
-        
-            try {
-                const response = await fetch('http://localhost:5000/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-        
-                if (!response.ok) {
-                    throw new Error('Failed to upload image.');
-                }
-        
-                const blob = await response.blob();
-                const imgUrl = URL.createObjectURL(blob);
-                document.getElementById('watermarkedImage').src = imgUrl;
-            } catch (error) {
-                console.error("Error uploading the image:", error);
-                alert("Failed to upload image. Please try again.");
-            }
-        }  
-    </script>
+    <!-- Incluyendo el script externo -->
+    <script src="script.js"></script>
 </body>
 </html>

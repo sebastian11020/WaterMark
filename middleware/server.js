@@ -2,6 +2,10 @@ const express = require('express');
 const axios = require('axios');
 const httpProxy = require('http-proxy');
 const fileUpload = require('express-fileupload');
+const path = require('path');
+const fs = require('fs');
+const FormData = require('form-data');
+const cors = require('cors'); // Asegúrate de incluir cors
 
 const app = express();
 const proxy = httpProxy.createProxyServer();
@@ -10,24 +14,14 @@ const discoveryServiceUrl = 'http://192.168.20.27:6000';
 let instances = [];
 let currentIndex = 0;
 
+app.use(cors()); 
 app.use(fileUpload());
 
-app.use((req, res, next) => {
-    const instanceUrl = `http://192.168.20.27:3000`; 
-
-    axios.post(`${discoveryServiceUrl}/register`, { url: instanceUrl })
-        .then(response => {
-            console.log('Instance registered with discovery service');
-            next();
-        })
-        .catch(error => {
-            console.error('Error registering instance:', error.message);
-            res.status(500).send('Failed to register instance');
-        });
-});
+// Eliminar el middleware para registrar instancias en el discovery
 
 const fetchInstances = async () => {
     try {
+        console.log("Obteniendo instancias del servicio de discovery...");
         const response = await axios.get(`${discoveryServiceUrl}/instances`);
         console.log('Respuesta del discovery:', response.data);
 
@@ -35,24 +29,78 @@ const fetchInstances = async () => {
             instances = response.data.instances;
             console.log('Instancias obtenidas:', instances);
         } else {
-            console.error('La respuesta del discovery no tiene la propiedad "instances":', response.data);
+            console.error('La respuesta del discovery no tiene la propiedad esperada:', response.data);
         }
     } catch (error) {
-        console.error('Error fetching instances:', error.message);
+        console.error('Error al obtener las instancias:', error.message);
     }
 };
 
-app.use((req, res) => {
-    if (!Array.isArray(instances) || instances.length === 0) {
-        return res.status(503).send('No instances available');
+app.post('/upload', (req, res) => {
+    console.log("Petición de subida recibida en el middleware:", req.headers);
+
+    if (!req.files || !req.files.image) {
+        console.error("No se subió ninguna imagen.");
+        return res.status(400).send('No image uploaded');
     }
-    proxy.web(req, res, { target: instances[currentIndex] });
-    currentIndex = (currentIndex + 1) % instances.length; 
+
+    const imageFile = req.files.image;
+    const tempImagePath = path.join(__dirname, 'uploads', imageFile.name);
+
+    // Asegúrate de que la carpeta 'uploads' existe
+    const uploadsDir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir);
+    }
+
+    console.log("Archivo recibido:", imageFile.name);
+
+    imageFile.mv(tempImagePath, (err) => {
+        if (err) {
+            console.error('Error al guardar la imagen:', err.message);
+            return res.status(500).send('Error saving the image');
+        }
+
+        if (instances.length === 0) {
+            console.error("No hay instancias disponibles para procesar la imagen.");
+            return res.status(503).send('No instances available');
+        }
+
+        const targetInstance = instances[currentIndex];
+        currentIndex = (currentIndex + 1) % instances.length;
+
+        console.log(`Redirigiendo la imagen a la instancia: ${targetInstance}`);
+
+        const formData = new FormData();
+        formData.append('image', fs.createReadStream(tempImagePath));
+
+        axios.post(`${targetInstance}/upload`, formData, {
+            headers: formData.getHeaders(),
+            responseType: 'arraybuffer',
+        })
+        .then(response => {
+            console.log('Imagen procesada por la instancia:', targetInstance);
+            res.set('Content-Type', 'image/png');
+            res.send(response.data);
+        })
+        .catch(error => {
+            console.error('Error al enviar la imagen a la instancia:', error.response ? error.response.data : error.message);
+            res.status(500).send('Error processing the image');
+        })
+        .finally(() => {
+            // Eliminar archivo temporal
+            if (fs.existsSync(tempImagePath)) {
+                fs.unlinkSync(tempImagePath);
+                console.log('Archivo temporal eliminado:', tempImagePath);
+            }
+        });
+    });
 });
 
+// Verificar instancias del servicio discovery cada 5 segundos
 setInterval(fetchInstances, 5000);
 
-const PORT = 3000;
+const PORT = 4000; // Cambié el puerto a 4000
 app.listen(PORT, () => {
-    console.log(`Server running at http://192.168.20.27:${PORT}`);
+    console.log(`Middleware corriendo en http://192.168.20.27:${PORT}`);
 });
