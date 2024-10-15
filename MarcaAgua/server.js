@@ -42,7 +42,7 @@ app.post('/upload', async (req, res) => {
         logEntry.status = 400;
         logEntry.result = 'No files were uploaded.';
         logger.warn(JSON.stringify(logEntry));
-        return res.status(400).json({ message: logEntry.result, log: logEntry });
+        return res.status(400).send(logEntry.result);
     }
 
     try {
@@ -60,7 +60,7 @@ app.post('/upload', async (req, res) => {
         const standardHeight = 600;
         image.resize(standardWidth, standardHeight);
 
-        const watermarkWidth = image.bitmap.width * 0.1; 
+        const watermarkWidth = image.bitmap.width * 0.1; // Ajusta el factor de escala según sea necesario
         watermark.resize(watermarkWidth, Jimp.AUTO);
 
         const x = image.bitmap.width - watermark.bitmap.width - 10; 
@@ -76,12 +76,12 @@ app.post('/upload', async (req, res) => {
         logEntry.status = 200;
         logEntry.result = 'Image processed successfully';
         logger.info(JSON.stringify(logEntry));
-        res.json({ message: logEntry.result, log: logEntry, image: outputBuffer.toString('base64') }); 
+        res.send(outputBuffer);
     } catch (error) {
         logEntry.status = 500;
         logEntry.result = 'Error processing the image: ' + error.message;
         logger.error(JSON.stringify(logEntry));
-        res.status(500).json({ message: logEntry.result, log: logEntry });
+        res.status(500).send(logEntry.result);
     }
 });
 
@@ -100,5 +100,5 @@ app.get('/health-check', (req, res) => {
 });
 
 app.listen(port, () => {
-    logger.info(`Server running at http://localhost:${port}`);
+    logger.info('Server running at http://localhost:${port}');
 });
