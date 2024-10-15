@@ -31,10 +31,10 @@ app.post('/create-instance', async (req, res) => {
             return res.status(500).send('Error al crear la instancia');
         }
         
-        const instanceUrl = `http://192.168.20.27:${port}`;
+        const instanceUrl = `http://localhost:${port}`;
 
         try {
-            await axios.post(`http://192.168.20.27:6000/register`, { instanceUrl });
+            await axios.post(`http://localhost:6000/register`, { instanceUrl });
             console.log(`Instancia registrada en el servicio de discovery: ${instanceUrl}`);
         } catch (err) {
             console.error(`Error al registrar la instancia en el servicio de discovery: ${err.message}`);
@@ -51,25 +51,37 @@ app.post('/chaos-engineering', (req, res) => {
     if (instances.length === 0) {
         return res.status(400).send('No hay instancias disponibles para eliminar');
     }
-
     const randomIndex = Math.floor(Math.random() * instances.length);
     const instanceToRemove = instances[randomIndex];
+
     const command = `docker rm -f ${instanceToRemove.name}`;
 
-    exec(command, (error, stdout) => {
+    exec(command, async (error, stdout) => {
         if (error) {
             console.error(`Error al eliminar la instancia: ${error}`);
             return res.status(500).send('Error al eliminar la instancia');
         }
-        
+
+        const instanceUrl = `http://localhost:${instanceToRemove.port}`;
+
+        // Llamada para desregistrar la instancia del servicio de discovery
+        try {
+            await axios.post(`http://localhost:6000/deregister`, { instanceUrl });
+            console.log(`Instancia desregistrada del servicio de discovery: ${instanceUrl}`);
+        } catch (err) {
+            console.error(`Error al desregistrar la instancia en el servicio de discovery: ${err.message}`);
+        }
+
+        // Eliminar la instancia de la lista local y notificar la actualización
         instances.splice(randomIndex, 1);
         io.emit('update', { instances, healthHistory });
 
+        // Crear una nueva instancia para reemplazar la eliminada
         const newInstanceName = `instance-${instancesCount}`;
         const newPort = 5000 + instancesCount;
         const newCommand = `docker run -d -p ${newPort}:3000 --name ${newInstanceName} marcaagua`;
-        
-        exec(newCommand, (error, stdout) => {
+
+        exec(newCommand, async (error, stdout) => {
             if (error) {
                 console.error(`Error al reiniciar la instancia ${newInstanceName}: ${error}`);
                 return res.status(500).send('Error al reiniciar la instancia');
@@ -78,11 +90,21 @@ app.post('/chaos-engineering', (req, res) => {
             instancesCount++;
             io.emit('update', { instances, healthHistory });
             console.log(`Instancia reiniciada exitosamente: ${newInstanceName}`);
+
+            // Registrar la nueva instancia en el servicio de discovery
+            const newInstanceUrl = `http://localhost:${newPort}`;
+            try {
+                await axios.post(`http://localhost:6000/register`, { instanceUrl: newInstanceUrl });
+                console.log(`Instancia registrada en el servicio de discovery: ${newInstanceUrl}`);
+            } catch (err) {
+                console.error(`Error al registrar la nueva instancia en el servicio de discovery: ${err.message}`);
+            }
         });
 
         res.status(200).send(`Instancia eliminada y nueva instancia creada: ${instanceToRemove.name}`);
     });
 });
+
 
 app.get('/instances', (req, res) => {
     res.status(200).json(instances);
@@ -97,7 +119,7 @@ app.get('/health-check', async (req, res) => {
             const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 30000));
 
             await Promise.race([
-                axios.get(`http://192.168.20.27:${instance.port}/health-check`),
+                axios.get(`http://localhost:${instance.port}/health-check`),
                 timeout
             ]);
 
@@ -162,12 +184,12 @@ app.get('/health-history', (req, res) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`Servidor corriendo en http://192.168.20.27:${PORT}`);
+    console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });
 
 setInterval(async () => {
     try {
-        await axios.get(`http://192.168.20.27:${PORT}/health-check`);
+        await axios.get(`http://localhost:${PORT}/health-check`);
     } catch (error) {
         console.error(`Error al verificar salud: ${error.message}`);
     }

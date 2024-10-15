@@ -5,7 +5,7 @@ const sharp = require('sharp');
 const cors = require('cors');
 const path = require('path');
 const app = express();
-const port = process.env.PORT || 3000; 
+const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(fileUpload());
@@ -30,7 +30,7 @@ app.post('/upload', async (req, res) => {
         const standardHeight = 600;
         image.resize(standardWidth, standardHeight);
 
-        const watermarkWidth = image.bitmap.width * scaleFactor;
+        const watermarkWidth = image.bitmap.width * 0.1; // Ajusta el factor de escala según sea necesario
         watermark.resize(watermarkWidth, Jimp.AUTO);
 
         const x = image.bitmap.width - watermark.bitmap.width - 10; 
@@ -55,5 +55,5 @@ app.get('/health-check', (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(`Server running at http://192.168.20.27:${port}`);
+    console.log(`Server running at http://localhost:${port}`);
 });
