@@ -15,7 +15,7 @@ const DISCOVERY_SERVICE_URL = process.env.DISCOVERY_SERVICE_URL;
 const HEALTH_CHECK_TIMEOUT = parseInt(process.env.HEALTH_CHECK_TIMEOUT);
 const HEALTH_CHECK_INTERVAL = parseInt(process.env.HEALTH_CHECK_INTERVAL);
 const DOCKER_IMAGE_NAME = process.env.DOCKER_IMAGE_NAME;
-const IP_ADDRESS = process.env.IP_ADDRESS ; 
+const IP_ADDRESS = process.env.IP_ADDRESS; 
 
 let instances = [];
 let instancesCount = 0;
