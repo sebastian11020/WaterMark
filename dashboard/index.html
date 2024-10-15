@@ -27,7 +27,7 @@
             border: 1px solid #ccc;
             margin-bottom: 5px;
         }
-        #healthChartContainer {
+        .chart-container {
             margin-top: 20px;
             width: 100%;
             height: 400px;
@@ -42,138 +42,114 @@
         <h2>Instances</h2>
         <ul id="instanceList"></ul>
     </div>
-    <div id="healthChartContainer">
-        <h2>Health Chart</h2>
-        <canvas id="healthChart"></canvas>
+    <div id="charts">
+        <h2>Instance Health Charts</h2>
     </div>
 
     <script>
         const instanceList = document.getElementById('instanceList');
-        const ctx = document.getElementById('healthChart').getContext('2d');
-    const healthChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: [], // Fechas/timestamps de los eventos de health check
-            datasets: [], // Datos de las instancias
-        },
-        options: {
-            scales: {
-                x: {
-                    type: 'time',
-                    time: {
-                        unit: 'minute',
-                    },
-                    title: {
-                        display: true,
-                        text: 'Time'
-                    },
-                },
-                y: {
-                    title: {
-                        display: true,
-                        text: 'Status',
-                    },
-                    ticks: {
-                        callback: (value) => (value === 200 ? 'Up' : 'Down'),
-                    },
-                    suggestedMin: 0,
-                    suggestedMax: 200,
-                },
-            },
-            responsive: true,
-            plugins: {
-                legend: {
-                    display: true,
-                },
-            },
-        },
-    });
+        const chartsContainer = document.getElementById('charts');
+        const chartInstances = {}; // Para guardar las referencias de cada gráfico
 
+        const colors = [
+            'rgba(255, 99, 132, 1)',
+            'rgba(54, 162, 235, 1)',
+            'rgba(255, 206, 86, 1)',
+            'rgba(75, 192, 192, 1)',
+            'rgba(153, 102, 255, 1)',
+            'rgba(255, 159, 64, 1)'
+        ];
+
+        // Función para crear una nueva instancia
         async function fetchInstances() {
             const response = await fetch('http://localhost:7000/instances');
             const instances = await response.json();
             instanceList.innerHTML = instances.map(instance => `<li>${instance.name} (Port: ${instance.port}) - ${instance.status}</li>`).join('');
-            updateHealthChart(instances);
+            fetchHealthHistory(instances);
         }
 
-        async function fetchHealthHistory() {
-        const response = await fetch('http://localhost:7000/health-history');
-        const history = await response.json();
+        // Función para obtener el historial de salud
+        async function fetchHealthHistory(instances) {
+            const response = await fetch('http://localhost:7000/health-history');
+            const history = await response.json();
 
-        // Limpiar datos actuales
-        healthChart.data.labels = [];
-        healthChart.data.datasets = [];
+            // Limpiar contenedor de gráficos
+            chartsContainer.innerHTML = '';
 
-        // Procesar el historial de cada instancia
-        Object.keys(history).forEach(instance => {
-            const instanceData = history[instance].map(entry => ({
-                x: new Date(entry.timestamp),
-                y: entry.status === 200 ? 200 : 0,
-            }));
+            // Crear un gráfico para cada instancia
+            instances.forEach((instance, index) => {
+                const instanceName = instance.name;
 
-            healthChart.data.datasets.push({
-                label: instance,
-                data: instanceData,
-                borderColor: 'rgba(75, 192, 192, 1)',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                fill: false,
-            });
+                // Crear un nuevo canvas para cada gráfico
+                const chartContainer = document.createElement('div');
+                chartContainer.className = 'chart-container';
+                chartContainer.innerHTML = `<h3>${instanceName} Health</h3><canvas id="${instanceName}-chart"></canvas>`;
+                chartsContainer.appendChild(chartContainer);
 
-            // Agregar etiquetas de tiempo
-            instanceData.forEach(dataPoint => {
-                if (!healthChart.data.labels.includes(dataPoint.x)) {
-                    healthChart.data.labels.push(dataPoint.x);
-                }
-            });
-        });
+                const ctx = document.getElementById(`${instanceName}-chart`).getContext('2d');
+                const instanceData = history[instanceName] || [];
 
-        // Ordenar las etiquetas de tiempo
-        healthChart.data.labels.sort((a, b) => a - b);
-
-        // Actualizar el gráfico
-        healthChart.update();
-    }
-
-        function updateHealthChart(instances) {
-            healthChart.data.labels = [];
-            healthChart.data.datasets = [];
-
-            instances.forEach(instance => {
-                if (!healthChart.data.datasets.some(dataset => dataset.label === instance.name)) {
-                    healthChart.data.datasets.push({
-                        label: instance.name,
-                        data: [],
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                        fill: false,
-                    });
-                }
-            });
-
-            healthChart.update();
-        }
-
-        async function updateChartData(history) {
-            await fetchHealthHistory();
-            healthChart.data.labels = [];
-            healthChart.data.datasets.forEach(dataset => {
-                dataset.data = [];
-            });
-
-            Object.keys(history).forEach(instanceName => {
-                const data = history[instanceName];
-                data.forEach(entry => {
-                    const timestamp = new Date(entry.timestamp).getTime();
-                    const status = entry.status === 200 ? 200 : 0;
-                    healthChart.data.labels.push(timestamp);
-                    const dataset = healthChart.data.datasets.find(ds => ds.label === instanceName);
-                    if (dataset) {
-                        dataset.data.push({ x: timestamp, y: status });
+                const chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: instanceData.map(entry => new Date(entry.timestamp)),
+                        datasets: [{
+                            label: instanceName,
+                            data: instanceData.map(entry => ({
+                                x: new Date(entry.timestamp),
+                                y: entry.latency !== null ? entry.latency : 0
+                            })),
+                            borderColor: colors[index % colors.length],
+                            backgroundColor: colors[index % colors.length].replace('1)', '0.2)'),
+                            fill: false,
+                            pointRadius: 3,
+                            borderWidth: 2,
+                            pointBackgroundColor: instanceData.map(dataPoint => dataPoint.status === 'Running' ? 'green' : 'red'),
+                            pointBorderColor: instanceData.map(dataPoint => dataPoint.status === 'Running' ? 'green' : 'red'),
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: {
+                                    unit: 'minute',
+                                    tooltipFormat: 'PPpp',
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Time'
+                                },
+                                min: new Date(new Date().getTime() - 5 * 60 * 1000),
+                                max: new Date(),
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Latency (ms)',
+                                },
+                                ticks: {
+                                    callback: (value) => {
+                                        if (value === 0) return 'Dead';
+                                        return value;
+                                    },
+                                },
+                                suggestedMin: 0,
+                                suggestedMax: 15,
+                            },
+                        },
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                display: true,
+                            },
+                        },
                     }
                 });
-            });
 
-            healthChart.update();
+                // Guardar referencia del gráfico para futuras actualizaciones
+                chartInstances[instanceName] = chart;
+            });
         }
 
         document.getElementById('createInstanceButton').addEventListener('click', async () => {
@@ -186,9 +162,11 @@
             fetchInstances();
         });
 
-        // Fetch instances and health data on load
+        // Actualizar las instancias y gráficos cada 5 segundos
+        setInterval(fetchInstances, 5000);
+
+        // Fetch initial data
         fetchInstances();
-        setInterval(fetchHealthHistory, 5000); // Update chart data every 5 seconds
     </script>
 </body>
 </html>
