@@ -130,3 +130,8 @@ loadBalancerApp.listen(loadBalancerPort, () => {
     console.log(`Load balancer running at http://localhost:${loadBalancerPort}`);
     fetchInstances();
 });
+
+app.listen(loadBalancerPort, () => {
+    console.log(`Balanceador de carga corriendo en http://localhost:${loadBalancerPort}`);
+    fetchInstances(); // Obtener las instancias al inicio
+});

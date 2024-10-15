@@ -16,9 +16,11 @@ app.use(express.static('public')); // Servir archivos estáticos
 
 // Ruta para crear una nueva instancia
 app.post('/create-instance', (req, res) => {
+    
     const instanceName = `instance-${instancesCount}`;
-    const port = 5000 + instancesCount; // Generar puertos dinámicamente
-    const command = `docker run -d  -p ${port}:3000 --name ${instanceName} marcaagua`; // Cambia 'my-container' según tu imagen
+    const port = 5000 + instancesCount;
+    const instanceUrl = `http://localhost:${port}`;
+    const command = `docker run -d -p ${port}:3000 --name ${instanceName} marcaagua`;
 
     exec(command, (error, stdout) => {
         if (error) {
@@ -27,6 +29,11 @@ app.post('/create-instance', (req, res) => {
         }
         console.log(`Nueva instancia creada: ${stdout}`);
         instances.push({ name: instanceName, port: port, status: 'Running' }); // Guardar la instancia
+
+        axios.post(`${DISCOVERY_SERVICE_URL}/register`, { instanceUrl })
+        .then(() => console.log(`Instancia registrada en el discovery: ${instanceUrl}`))
+        .catch(err => console.error('Error registrando la instancia en el discovery', err));
+
         instancesCount++;
         res.status(201).send(`Instancia creada exitosamente: ${instanceName}`);
     });
@@ -37,6 +44,8 @@ app.post('/chaos-engineering', (req, res) => {
     if (instances.length === 0) {
         return res.status(400).send('No hay instancias disponibles para eliminar');
     }
+
+    const instanceUrl = `http://localhost:${instanceToRemove.port}`;
 
     // Seleccionar una instancia aleatoria
     const randomIndex = Math.floor(Math.random() * instances.length);
@@ -54,6 +63,12 @@ app.post('/chaos-engineering', (req, res) => {
 
         // Remover la instancia del arreglo de instancias
         instances.splice(randomIndex, 1);
+
+
+        axios.post(`${DISCOVERY_SERVICE_URL}/deregister`, { instanceUrl })
+            .then(() => console.log(`Instancia desregistrada del discovery: ${instanceUrl}`))
+            .catch(err => console.error('Error desregistrando la instancia del discovery', err));
+
         res.status(200).send(`Instancia eliminada exitosamente: ${instanceToRemove.name}`);
     });
 });
