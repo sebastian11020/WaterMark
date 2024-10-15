@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const FormData = require('form-data');
 const cors = require('cors');
+const winston = require('winston');
 
 const app = express();
 const discoveryServiceUrl = process.env.DISCOVERY_SERVICE_URL; 
@@ -14,6 +15,23 @@ const IP_ADDRESS = process.env.IP_ADDRESS;
 
 let instances = [];
 let currentIndex = 0;
+
+// Crear la carpeta de logs si no existe
+if (!fs.existsSync('logs')) {
+    fs.mkdirSync('logs');
+}
+
+// Configuración de winston para los logs
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.json(),
+    transports: [
+        new winston.transports.Console({
+            format: winston.format.simple(),
+        }),
+        new winston.transports.File({ filename: 'logs/middleware.log' })
+    ],
+});
 
 app.use(cors()); 
 app.use(fileUpload());
@@ -36,10 +54,21 @@ const fetchInstances = async () => {
 };
 
 app.post('/upload', (req, res) => {
+    const logEntry = {
+        date: new Date().toISOString(),
+        method: req.method,
+        url: req.originalUrl,
+        status: null,
+        payload: req.body || {},
+        result: null,
+    };
+
     console.log("Petición de subida recibida en el middleware:", req.headers);
 
     if (!req.files || !req.files.image) {
-        console.error("No se subió ninguna imagen.");
+        logEntry.status = 400;
+        logEntry.result = "No se subió ninguna imagen.";
+        logger.warn(JSON.stringify(logEntry));
         return res.status(400).send('No image uploaded');
     }
 
@@ -55,12 +84,16 @@ app.post('/upload', (req, res) => {
 
     imageFile.mv(tempImagePath, (err) => {
         if (err) {
-            console.error('Error al guardar la imagen:', err.message);
+            logEntry.status = 500;
+            logEntry.result = `Error al guardar la imagen: ${err.message}`;
+            logger.error(JSON.stringify(logEntry));
             return res.status(500).send('Error saving the image');
         }
 
         if (instances.length === 0) {
-            console.error("No hay instancias disponibles para procesar la imagen.");
+            logEntry.status = 503;
+            logEntry.result = "No hay instancias disponibles para procesar la imagen.";
+            logger.warn(JSON.stringify(logEntry));
             return res.status(503).send('No instances available');
         }
 
@@ -77,12 +110,18 @@ app.post('/upload', (req, res) => {
             responseType: 'arraybuffer',
         })
         .then(response => {
-            console.log('Imagen procesada por la instancia:', targetInstance);
+            logEntry.status = 200;
+            logEntry.result = `Imagen procesada por la instancia: ${targetInstance}`;
+            logger.info(JSON.stringify(logEntry));
+
             res.set('Content-Type', 'image/png');
             res.send(response.data);
         })
         .catch(error => {
-            console.error('Error al enviar la imagen a la instancia:', error.response ? error.response.data : error.message);
+            logEntry.status = 500;
+            logEntry.result = `Error al enviar la imagen a la instancia: ${error.response ? error.response.data : error.message}`;
+            logger.error(JSON.stringify(logEntry));
+
             res.status(500).send('Error processing the image');
         })
         .finally(() => {
@@ -98,4 +137,5 @@ setInterval(fetchInstances, 5000);
 
 app.listen(PORT, () => {
     console.log(`Middleware corriendo en http://${IP_ADDRESS}:${PORT}`);
+    logger.info(`Middleware corriendo en http://${IP_ADDRESS}:${PORT}`);
 });
