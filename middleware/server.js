@@ -9,7 +9,7 @@ const cors = require('cors');
 
 const app = express();
 const proxy = httpProxy.createProxyServer();
-const discoveryServiceUrl = 'http://192.168.1.3:6000'; 
+const discoveryServiceUrl = 'http://localhost:6000'; 
 
 let instances = [];
 let currentIndex = 0;
@@ -97,5 +97,5 @@ setInterval(fetchInstances, 5000);
 
 const PORT = 4000;
 app.listen(PORT, () => {
-    console.log(`Middleware corriendo en http://192.168.1.3:${PORT}`);
+    console.log(`Middleware corriendo en http://localhost:${PORT}`);
 });

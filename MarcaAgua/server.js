@@ -55,5 +55,5 @@ app.get('/health-check', (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(`Server running at http://192.168.1.3:${port}`);
+    console.log(`Server running at http://localhost:${port}`);
 });
