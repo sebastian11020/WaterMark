@@ -61,15 +61,19 @@ app.get('/health-check', (req, res) => {
 });
 
 // Función para registrar la instancia en el Discovery Server
-const registerInstance = async () => {
+const registerInstance = async (attempt = 1) => {
     const instanceUrl = `http://localhost:${port}`;
     try {
         await axios.post('http://localhost:6000/register', { instanceUrl });
         console.log(`Instancia registrada en el Discovery Server: ${instanceUrl}`);
     } catch (error) {
         console.error('Error registrando la instancia en el Discovery Server:', error);
+        if (attempt < 5) {
+            setTimeout(() => registerInstance(attempt + 1), 2000); // Espera 2 segundos antes de reintentar
+        }
     }
 };
+
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);

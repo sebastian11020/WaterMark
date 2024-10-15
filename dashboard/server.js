@@ -95,18 +95,14 @@ app.get('/health-check', async (req, res) => {
     res.status(200).json(statuses);
 });
 
-
-// Ruta para obtener el historial de salud de las instancias
 app.get('/health-history', (req, res) => {
     res.status(200).json(healthHistory);
 });
 
-// Iniciar el servidor
 server.listen(PORT, () => {
     console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });
 
-// Realizar un health check cada 5 segundos
 setInterval(async () => {
     await axios.get(`http://localhost:${PORT}/health-check`);
 }, 5000);
