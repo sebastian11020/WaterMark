@@ -31,10 +31,10 @@ app.post('/create-instance', async (req, res) => {
             return res.status(500).send('Error al crear la instancia');
         }
         
-        const instanceUrl = `http://192.168.20.27:${port}`;
+        const instanceUrl = `http://192.168.1.3:${port}`;
 
         try {
-            await axios.post(`http://192.168.20.27:6000/register`, { instanceUrl });
+            await axios.post(`http://192.168.1.3:6000/register`, { instanceUrl });
             console.log(`Instancia registrada en el servicio de discovery: ${instanceUrl}`);
         } catch (err) {
             console.error(`Error al registrar la instancia en el servicio de discovery: ${err.message}`);
@@ -97,7 +97,7 @@ app.get('/health-check', async (req, res) => {
             const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 30000));
 
             await Promise.race([
-                axios.get(`http://192.168.20.27:${instance.port}/health-check`),
+                axios.get(`http://192.168.1.3:${instance.port}/health-check`),
                 timeout
             ]);
 
@@ -162,12 +162,12 @@ app.get('/health-history', (req, res) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`Servidor corriendo en http://192.168.20.27:${PORT}`);
+    console.log(`Servidor corriendo en http://192.168.1.3:${PORT}`);
 });
 
 setInterval(async () => {
     try {
-        await axios.get(`http://192.168.20.27:${PORT}/health-check`);
+        await axios.get(`http://192.168.1.3:${PORT}/health-check`);
     } catch (error) {
         console.error(`Error al verificar salud: ${error.message}`);
     }

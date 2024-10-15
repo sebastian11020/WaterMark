@@ -17,7 +17,7 @@ async function uploadImage() {
     
     try {
         console.log("Enviando imagen al middleware...");
-        const response = await fetch('http://192.168.20.27:4000/upload', {
+        const response = await fetch('http://192.168.1.3:4000/upload', {
             method: 'POST',
             body: formData
         });

@@ -5,19 +5,17 @@ const fileUpload = require('express-fileupload');
 const path = require('path');
 const fs = require('fs');
 const FormData = require('form-data');
-const cors = require('cors'); // Asegúrate de incluir cors
+const cors = require('cors');
 
 const app = express();
 const proxy = httpProxy.createProxyServer();
-const discoveryServiceUrl = 'http://192.168.20.27:6000'; 
+const discoveryServiceUrl = 'http://192.168.1.3:6000'; 
 
 let instances = [];
 let currentIndex = 0;
 
 app.use(cors()); 
 app.use(fileUpload());
-
-// Eliminar el middleware para registrar instancias en el discovery
 
 const fetchInstances = async () => {
     try {
@@ -47,7 +45,6 @@ app.post('/upload', (req, res) => {
     const imageFile = req.files.image;
     const tempImagePath = path.join(__dirname, 'uploads', imageFile.name);
 
-    // Asegúrate de que la carpeta 'uploads' existe
     const uploadsDir = path.join(__dirname, 'uploads');
     if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir);
@@ -88,7 +85,6 @@ app.post('/upload', (req, res) => {
             res.status(500).send('Error processing the image');
         })
         .finally(() => {
-            // Eliminar archivo temporal
             if (fs.existsSync(tempImagePath)) {
                 fs.unlinkSync(tempImagePath);
                 console.log('Archivo temporal eliminado:', tempImagePath);
@@ -97,10 +93,9 @@ app.post('/upload', (req, res) => {
     });
 });
 
-// Verificar instancias del servicio discovery cada 5 segundos
 setInterval(fetchInstances, 5000);
 
-const PORT = 4000; // Cambié el puerto a 4000
+const PORT = 4000;
 app.listen(PORT, () => {
-    console.log(`Middleware corriendo en http://192.168.20.27:${PORT}`);
+    console.log(`Middleware corriendo en http://192.168.1.3:${PORT}`);
 });
