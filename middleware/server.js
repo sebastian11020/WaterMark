@@ -8,8 +8,9 @@ const FormData = require('form-data');
 const cors = require('cors');
 
 const app = express();
-const proxy = httpProxy.createProxyServer();
-const discoveryServiceUrl = 'http://localhost:6000'; 
+const discoveryServiceUrl = process.env.DISCOVERY_SERVICE_URL; 
+const PORT = process.env.PORT;
+const IP_ADDRESS = process.env.IP_ADDRESS;
 
 let instances = [];
 let currentIndex = 0;
@@ -95,7 +96,6 @@ app.post('/upload', (req, res) => {
 
 setInterval(fetchInstances, 5000);
 
-const PORT = 4000;
 app.listen(PORT, () => {
-    console.log(`Middleware corriendo en http://localhost:${PORT}`);
+    console.log(`Middleware corriendo en http://${IP_ADDRESS}:${PORT}`);
 });

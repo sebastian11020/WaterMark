@@ -16,6 +16,7 @@ const DISCOVERY_SERVICE_URL = process.env.DISCOVERY_SERVICE_URL;
 const HEALTH_CHECK_TIMEOUT = parseInt(process.env.HEALTH_CHECK_TIMEOUT);
 const HEALTH_CHECK_INTERVAL = parseInt(process.env.HEALTH_CHECK_INTERVAL);
 const DOCKER_IMAGE_NAME = process.env.DOCKER_IMAGE_NAME;
+const IP_ADDRESS = process.env.IP_ADDRESS; 
 const REMOTE_IP = process.env.REMOTE_IP; // Dirección IP de la máquina remota
 const REMOTE_USERNAME = process.env.REMOTE_USERNAME; // Nombre de usuario para SSH
 const PRIVATE_KEY_PATH = process.env.PRIVATE_KEY_PATH; // Ruta de la clave privada

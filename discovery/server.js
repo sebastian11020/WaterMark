@@ -3,7 +3,8 @@ const express = require('express');
 const axios = require('axios');
 
 const app = express();
-const port = process.env.DISCOVERY_SERVICE_PORT || 6000;
+const PORT= process.env.SERVER_PORT;
+const IP_ADDRESS = process.env.IP_ADDRESS;
 
 let instances = [];
 
@@ -50,8 +51,8 @@ app.get('/instances', (req, res) => {
 });
 
 const notifyServices = async () => {
-    const loadBalancerUrl = process.env.LOAD_BALANCER_URL || 'http://localhost:4000';
-    const monitoringServiceUrl = process.env.MONITORING_SERVICE_URL || 'http://localhost:7000';
+    const loadBalancerUrl = process.env.LOAD_BALANCER_URL;
+    const monitoringServiceUrl = process.env.MONITORING_SERVICE_URL;
 
     try {
         await axios.post(`${loadBalancerUrl}/update-instances`, { instances });
@@ -66,8 +67,8 @@ const notifyServices = async () => {
 
 setInterval(notifyServices, 10000); 
 
-app.listen(port, () => {
-    console.log(`Servicio de descubrimiento corriendo en http://localhost:${port}`);
+app.listen(PORT, () => {
+    console.log(`Servicio de descubrimiento corriendo en http://${IP_ADDRESS}:${PORT}`);
 
     notifyServices();
 });
