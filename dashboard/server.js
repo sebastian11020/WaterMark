@@ -2,7 +2,6 @@ const express = require('express');
 const { exec } = require('child_process');
 const axios = require('axios');
 const cors = require('cors');
-const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
 
@@ -22,22 +21,35 @@ app.use(express.json());
 app.use(express.static('public')); // Servir archivos estáticos
 
 // Ruta para crear una nueva instancia
-app.post('/create-instance', (req, res) => {
+app.post('/create-instance', async (req, res) => {
     const instanceName = `instance-${instancesCount}`;
     const port = 5000 + instancesCount;
     const command = `docker run -d -p ${port}:3000 --name ${instanceName} marcaagua`;
 
-    exec(command, (error, stdout) => {
+    exec(command, async (error, stdout) => {
         if (error) {
             console.error(`Error al crear la instancia: ${error}`);
             return res.status(500).send('Error al crear la instancia');
         }
+        
+        // Crear la URL de la nueva instancia
+        const instanceUrl = `http://192.168.20.27:${port}`;
+        
+        // Registrar la nueva instancia en el servicio de discovery
+        try {
+            await axios.post(`http://192.168.20.27:6000/register`, { instanceUrl });
+            console.log(`Instancia registrada en el servicio de discovery: ${instanceUrl}`);
+        } catch (err) {
+            console.error(`Error al registrar la instancia en el servicio de discovery: ${err.message}`);
+        }
+
         instances.push({ name: instanceName, port: port, status: 'Running', failedChecks: 0 });
         instancesCount++;
         io.emit('update', { instances, healthHistory });
         res.status(201).send(`Instancia creada exitosamente: ${instanceName}`);
     });
 });
+
 
 // Ruta para hacer ingeniería de caos (eliminar una instancia aleatoria)
 app.post('/chaos-engineering', (req, res) => {
@@ -54,9 +66,28 @@ app.post('/chaos-engineering', (req, res) => {
             console.error(`Error al eliminar la instancia: ${error}`);
             return res.status(500).send('Error al eliminar la instancia');
         }
+        
+        // Remover la instancia de la lista
         instances.splice(randomIndex, 1);
         io.emit('update', { instances, healthHistory });
-        res.status(200).send(`Instancia eliminada exitosamente: ${instanceToRemove.name}`);
+
+        // Crear nueva instancia para reemplazar la eliminada
+        const newInstanceName = `instance-${instancesCount}`;
+        const newPort = 5000 + instancesCount;
+        const newCommand = `docker run -d -p ${newPort}:3000 --name ${newInstanceName} marcaagua`;
+        
+        exec(newCommand, (error, stdout) => {
+            if (error) {
+                console.error(`Error al reiniciar la instancia ${newInstanceName}: ${error}`);
+                return res.status(500).send('Error al reiniciar la instancia');
+            }
+            instances.push({ name: newInstanceName, port: newPort, status: 'Running', failedChecks: 0 });
+            instancesCount++;
+            io.emit('update', { instances, healthHistory });
+            console.log(`Instancia reiniciada exitosamente: ${newInstanceName}`);
+        });
+
+        res.status(200).send(`Instancia eliminada y nueva instancia creada: ${instanceToRemove.name}`);
     });
 });
 
